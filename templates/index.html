@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WeatherAD — Anomaly Detection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-brand">
+    <div class="nav-logo">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    </div>
+    <span class="nav-name">WeatherAD</span>
+    <span class="nav-tag">Python · Pandas · Flask</span>
+  </div>
+  <div class="nav-right">
+    <span class="status-dot"></span>
+    <span class="status-text">Ready</span>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Weather Anomaly Detection System</div>
+    <h1 class="hero-title">Detect unusual<br/><span class="accent">weather patterns</span></h1>
+    <p class="hero-sub">Upload your CSV or load sample data. Python processes it server-side using pandas — flags anomalies against monthly or seasonal baselines.</p>
+  </div>
+</section>
+
+<main class="main">
+  <section class="input-section">
+    <div class="card upload-card">
+      <div class="card-header">
+        <div class="card-icon">📂</div>
+        <div>
+          <div class="card-title">Upload CSV</div>
+          <div class="card-sub">Required columns: <code>month, temperature, rainfall</code></div>
+        </div>
+      </div>
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="csv-file" accept=".csv" hidden/>
+        <div class="dz-icon">↑</div>
+        <div class="dz-text">Click or drag &amp; drop your CSV</div>
+        <div class="dz-hint">Example row: Jan,28.5,45</div>
+      </label>
+      <div id="file-name" class="file-name hidden"></div>
+    </div>
+
+    <div class="or-row">
+      <div class="or-line"></div><span>or</span><div class="or-line"></div>
+    </div>
+
+    <button class="btn-sample" id="sample-btn">▶&nbsp; Load sample data — India 2023–2024</button>
+
+    <div class="settings-row">
+      <div class="field">
+        <label>Temp threshold (°C)</label>
+        <input type="number" id="temp-thresh" value="3" min="0.5" step="0.5"/>
+      </div>
+      <div class="field">
+        <label>Rainfall threshold (mm)</label>
+        <input type="number" id="rain-thresh" value="20" min="1" step="1"/>
+      </div>
+      <div class="field">
+        <label>Averaging method</label>
+        <select id="avg-mode">
+          <option value="monthly">Monthly averages</option>
+          <option value="seasonal">Seasonal averages</option>
+        </select>
+      </div>
+      <button class="btn-run" id="run-btn">Run detection →</button>
+    </div>
+    <div id="error-box" class="error-box hidden"></div>
+  </section>
+
+  <section class="results hidden" id="results">
+    <div class="metrics-grid">
+      <div class="metric">
+        <div class="metric-label">Total records</div>
+        <div class="metric-value" id="m-total">—</div>
+      </div>
+      <div class="metric metric-red">
+        <div class="metric-label">Anomalies flagged</div>
+        <div class="metric-value" id="m-anomalies">—</div>
+        <div class="metric-sub" id="m-pct"></div>
+      </div>
+      <div class="metric metric-green">
+        <div class="metric-label">Avg temperature</div>
+        <div class="metric-value" id="m-avg-temp">—</div>
+        <div class="metric-sub">°C baseline</div>
+      </div>
+      <div class="metric metric-blue">
+        <div class="metric-label">Avg rainfall</div>
+        <div class="metric-value" id="m-avg-rain">—</div>
+        <div class="metric-sub">mm baseline</div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">🌡 Temperature trend</div>
+        <div class="chart-wrap"><canvas id="temp-chart"></canvas></div>
+        <div class="legend">
+          <span class="leg-item"><span class="leg-dot blue"></span>Actual</span>
+          <span class="leg-item"><span class="leg-dot red"></span>Anomaly</span>
+          <span class="leg-item"><span class="leg-dot gray"></span>Avg baseline</span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">🌧 Rainfall trend</div>
+        <div class="chart-wrap"><canvas id="rain-chart"></canvas></div>
+        <div class="legend">
+          <span class="leg-item"><span class="leg-dot green"></span>Actual</span>
+          <span class="leg-item"><span class="leg-dot red"></span>Anomaly</span>
+          <span class="leg-item"><span class="leg-dot gray"></span>Avg baseline</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <div class="chart-title">📋 Detailed records</div>
+        <div class="table-filters">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="anomaly">Anomalies only</button>
+          <button class="filter-btn" data-filter="normal">Normal only</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Month</th><th>Temp (°C)</th>
+            <th>Temp vs avg</th><th>Rainfall (mm)</th>
+            <th>Rain vs avg</th><th>Status</th>
+          </tr></thead>
+          <tbody id="data-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">Built with Python · Flask · Pandas · Chart.js</footer>
+
+<div class="loader hidden" id="loader">
+  <div class="loader-inner">
+    <div class="spinner"></div>
+    <div class="loader-text">Python is processing your data...</div>
+  </div>
+</div>
+
+<script src="/static/js/main.js"></script>
+</body>
+</html>
