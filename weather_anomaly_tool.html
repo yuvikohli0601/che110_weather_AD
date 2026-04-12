@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather Anomaly Detection Tool</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: rgba(255,255,255,0.08);
+      --border-hover: rgba(255,255,255,0.15);
+      --text: #e8eaf0;
+      --text-muted: #8b8fa8;
+      --text-faint: #555870;
+      --blue: #378ADD;
+      --blue-dim: rgba(55,138,221,0.15);
+      --green: #1D9E75;
+      --green-dim: rgba(29,158,117,0.15);
+      --red: #E24B4A;
+      --red-dim: rgba(226,75,74,0.12);
+      --amber: #EF9F27;
+      --amber-dim: rgba(239,159,39,0.12);
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      font-family: 'DM Sans', 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    /* Top nav */
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      border-bottom: 0.5px solid var(--border);
+      background: rgba(15,17,23,0.9);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-brand { display: flex; align-items: center; gap: 10px; }
+    .nav-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--blue), #185FA5);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+    .nav-title { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+    .nav-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+    .nav-badge {
+      font-size: 11px; padding: 3px 10px;
+      background: var(--blue-dim); color: var(--blue);
+      border: 0.5px solid rgba(55,138,221,0.3);
+      border-radius: 999px; font-weight: 500;
+    }
+
+    /* Layout */
+    .container { max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    /* Hero */
+    .hero { text-align: center; padding: 2.5rem 0 2rem; }
+    .hero h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px; }
+    .hero h1 span { color: var(--blue); }
+    .hero p { font-size: 15px; color: var(--text-muted); max-width: 480px; margin: 0 auto; }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: var(--border-hover); }
+    .card-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-faint); margin-bottom: 14px;
+    }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 1.5px dashed rgba(55,138,221,0.3);
+      border-radius: var(--radius-sm);
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--blue-dim);
+    }
+    .upload-zone:hover {
+      border-color: var(--blue);
+      background: rgba(55,138,221,0.12);
+    }
+    .upload-zone .icon { font-size: 28px; margin-bottom: 10px; }
+    .upload-zone p { font-size: 14px; color: var(--text-muted); }
+    .upload-zone small { font-size: 12px; color: var(--text-faint); margin-top: 4px; display: block; }
+    .upload-zone input { display: none; }
+
+    .divider { display: flex; align-items: center; gap: 12px; margin: 14px 0; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 0.5px; background: var(--border); }
+    .divider span { font-size: 12px; color: var(--text-faint); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px;
+      border: 0.5px solid var(--border-hover);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text);
+      font-size: 13px; font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn:hover { background: var(--surface2); border-color: rgba(255,255,255,0.25); }
+    .btn:active { transform: scale(0.98); }
+
+    .btn-primary {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #fff;
+    }
+    .btn-primary:hover { background: #185FA5; border-color: #185FA5; }
+
+    /* Controls */
+    .controls-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end; }
+    @media (max-width: 680px) { .controls-row { grid-template-columns: 1fr 1fr; } }
+
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 12px; color: var(--text-muted); }
+    .field input, .field select {
+      padding: 9px 12px;
+      border: 0.5px solid var(--border-hover);
+      border-radius: var(--radius-sm);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 13px;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus {
+      outline: none;
+      border-color: var(--blue);
+    }
+    .field select option { background: var(--surface2); }
+
+    /* Metrics */
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1rem; }
+    @media (max-width: 600px) { .metrics-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .metric {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.1rem;
+    }
+    .metric-label { font-size: 11px; color: var(--text-faint); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .metric-value { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; color: var(--text); }
+    .metric-value.red { color: var(--red); }
+    .metric-value.green { color: var(--green); }
+    .metric-sub { font-size: 11px; color: var(--text-faint); margin-top: 3px; }
+
+    /* Chart area */
+    .chart-wrap { position: relative; height: 220px; }
+
+    /* Legend */
+    .legend { display: flex; gap: 16px; margin-top: 10px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left; padding: 10px 12px;
+      border-bottom: 0.5px solid var(--border);
+      color: var(--text-faint); font-weight: 500;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    tbody td { padding: 10px 12px; border-bottom: 0.5px solid var(--border); color: var(--text); }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr { transition: background 0.1s; }
+    tbody tr:hover { background: rgba(255,255,255,0.02); }
+    tbody tr.anomaly { background: var(--red-dim); }
+    tbody tr.anomaly td:first-child { border-left: 2px solid var(--red); padding-left: 10px; }
+    tbody tr.anomaly:hover { background: rgba(226,75,74,0.18); }
+
+    .badge {
+      display: inline-block; padding: 3px 9px;
+      border-radius: 999px; font-size: 11px; font-weight: 600;
+    }
+    .badge-flag { background: var(--red-dim); color: var(--red); border: 0.5px solid rgba(226,75,74,0.3); }
+    .badge-ok { background: var(--green-dim); color: var(--green); border: 0.5px solid rgba(29,158,117,0.3); }
+
+    .diff-pos { color: var(--red); }
+    .diff-neg { color: var(--green); }
+
+    /* Section title */
+    .section-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 14px; letter-spacing: -0.01em; }
+
+    .hidden { display: none !important; }
+
+    /* Animate in */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.35s ease forwards; }
+
+    /* CSV format hint */
+    .hint-box {
+      background: var(--amber-dim);
+      border: 0.5px solid rgba(239,159,39,0.25);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--amber);
+      margin-top: 12px;
+    }
+    .hint-box code {
+      font-family: monospace;
+      background: rgba(239,159,39,0.15);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand">
+    <div class="nav-icon">🌩</div>
+    <div>
+      <div class="nav-title">WeatherAD</div>
+      <div class="nav-sub">Anomaly Detection Tool</div>
+    </div>
+  </div>
+  <span class="nav-badge">Simplified v1.0</span>
+</nav>
+
+<div class="container">
+  <div class="hero">
+    <h1>Detect <span>unusual</span> weather patterns</h1>
+    <p>Upload CSV data with temperature &amp; rainfall values. We'll flag anomalies automatically using statistical baselines.</p>
+  </div>
+
+  <!-- Upload Card -->
+  <div class="card" id="upload-card">
+    <div class="card-label">Data input</div>
+    <div class="upload-zone" onclick="document.getElementById('csv-input').click()">
+      <div class="icon">📂</div>
+      <p>Click to upload your weather CSV</p>
+      <small>Required columns: month, temperature, rainfall</small>
+      <input type="file" id="csv-input" accept=".csv" onchange="handleFile(event)" />
+    </div>
+    <div class="hint-box">
+      CSV format: <code>month,temperature,rainfall</code> &nbsp;→&nbsp; <code>Jan,28.5,45</code>
+    </div>
+    <div class="divider"><span>or use demo data</span></div>
+    <div style="text-align:center;">
+      <button class="btn btn-primary" onclick="loadSample()">▶ Load sample data (India - 2 years)</button>
+    </div>
+  </div>
+
+  <!-- Controls Card -->
+  <div class="card hidden" id="controls-card">
+    <div class="card-label">Detection settings</div>
+    <div class="controls-row">
+      <div class="field">
+        <label>Temp anomaly threshold (°C)</label>
+        <input type="number" id="temp-thresh" value="3" min="0.5" step="0.5" placeholder="e.g. 3" />
+      </div>
+      <div class="field">
+        <label>Rainfall anomaly threshold (mm)</label>
+        <input type="number" id="rain-thresh" value="20" min="1" step="1" placeholder="e.g. 20" />
+      </div>
+      <div class="field">
+        <label>Averaging method</label>
+        <select id="season-mode">
+          <option value="monthly">Monthly averages</option>
+          <option value="seasonal">Seasonal averages</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="runDetection()">Run ↗</button>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results-section" class="hidden fade-up">
+
+    <!-- Metric Cards -->
+    <div class="metrics-grid">
+      <div class="metric">
+        <div class="metric-label">Total records</div>
+        <div class="metric-value" id="m-total">0</div>
+        <div class="metric-sub">data points</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Anomalies found</div>
+        <div class="metric-value red" id="m-anomalies">0</div>
+        <div class="metric-sub" id="m-pct">0% of data</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Avg temperature</div>
+        <div class="metric-value green" id="m-avg-temp">—</div>
+        <div class="metric-sub">°C baseline</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Avg rainfall</div>
+        <div class="metric-value" id="m-avg-rain">—</div>
+        <div class="metric-sub">mm baseline</div>
+      </div>
+    </div>
+
+    <!-- Temp Chart -->
+    <div class="card">
+      <div class="section-title">🌡 Temperature trend &amp; anomalies</div>
+      <div class="chart-wrap"><canvas id="temp-chart"></canvas></div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#378ADD"></div>Temperature</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#E24B4A"></div>Flagged anomaly</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#555870; opacity:0.6"></div>Avg baseline</div>
+      </div>
+    </div>
+
+    <!-- Rain Chart -->
+    <div class="card">
+      <div class="section-title">🌧 Rainfall trend &amp; anomalies</div>
+      <div class="chart-wrap"><canvas id="rain-chart"></canvas></div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#1D9E75"></div>Rainfall</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#E24B4A"></div>Flagged anomaly</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#555870; opacity:0.6"></div>Avg baseline</div>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card">
+      <div class="section-title">📋 Detailed records</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Month</th>
+              <th>Temp (°C)</th>
+              <th>Temp vs avg</th>
+              <th>Rainfall (mm)</th>
+              <th>Rain vs avg</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="data-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let weatherData = [];
+  let tempChart = null, rainChart = null;
+
+  const SAMPLE_DATA = [
+    {month:'Jan',temperature:12,rainfall:18},
+    {month:'Feb',temperature:14,rainfall:22},
+    {month:'Mar',temperature:18,rainfall:35},
+    {month:'Apr',temperature:24,rainfall:28},
+    {month:'May',temperature:31,rainfall:42},
+    {month:'Jun',temperature:38,rainfall:85},
+    {month:'Jul',temperature:36,rainfall:210},
+    {month:'Aug',temperature:34,rainfall:195},
+    {month:'Sep',temperature:34,rainfall:120},
+    {month:'Oct',temperature:27,rainfall:55},
+    {month:'Nov',temperature:19,rainfall:20},
+    {month:'Dec',temperature:13,rainfall:14},
+    {month:'Jan',temperature:22,rainfall:18},
+    {month:'Feb',temperature:14,rainfall:62},
+    {month:'Mar',temperature:19,rainfall:36},
+    {month:'Apr',temperature:31,rainfall:29},
+    {month:'May',temperature:30,rainfall:41},
+    {month:'Jun',temperature:42,rainfall:90},
+    {month:'Jul',temperature:35,rainfall:250},
+    {month:'Aug',temperature:33,rainfall:188},
+    {month:'Sep',temperature:33,rainfall:115},
+    {month:'Oct',temperature:26,rainfall:52},
+    {month:'Nov',temperature:20,rainfall:22},
+    {month:'Dec',temperature:12,rainfall:12},
+  ];
+
+  function loadSample() {
+    weatherData = SAMPLE_DATA;
+    showControls();
+  }
+
+  function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const lines = ev.target.result.trim().split('\n');
+      const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+      const mi = headers.indexOf('month'), ti = headers.indexOf('temperature'), ri = headers.indexOf('rainfall');
+      if (mi < 0 || ti < 0 || ri < 0) {
+        alert('CSV must have columns: month, temperature, rainfall');
+        return;
+      }
+      weatherData = lines.slice(1).map(l => {
+        const cols = l.split(',');
+        return { month: cols[mi]?.trim(), temperature: parseFloat(cols[ti]), rainfall: parseFloat(cols[ri]) };
+      }).filter(r => r.month && !isNaN(r.temperature) && !isNaN(r.rainfall));
+      if (!weatherData.length) { alert('No valid rows found in CSV.'); return; }
+      showControls();
+    };
+    reader.readAsText(file);
+  }
+
+  function showControls() {
+    document.getElementById('controls-card').classList.remove('hidden');
+    runDetection();
+  }
+
+  function getSeason(month) {
+    const m = month.toLowerCase().slice(0, 3);
+    if (['dec','jan','feb'].includes(m)) return 'Winter';
+    if (['mar','apr','may'].includes(m)) return 'Spring';
+    if (['jun','jul','aug'].includes(m)) return 'Summer';
+    return 'Autumn';
+  }
+
+  function runDetection() {
+    if (!weatherData.length) return;
+    const tempThresh = parseFloat(document.getElementById('temp-thresh').value) || 3;
+    const rainThresh = parseFloat(document.getElementById('rain-thresh').value) || 20;
+    const mode = document.getElementById('season-mode').value;
+
+    // Build averages
+    const sumMap = {}, countMap = {};
+    weatherData.forEach(r => {
+      const key = mode === 'seasonal' ? getSeason(r.month) : r.month;
+      if (!sumMap[key]) { sumMap[key] = {temp:0, rain:0}; countMap[key] = 0; }
+      sumMap[key].temp += r.temperature;
+      sumMap[key].rain += r.rainfall;
+      countMap[key]++;
+    });
+    const avgMap = {};
+    Object.keys(sumMap).forEach(k => {
+      avgMap[k] = { temp: sumMap[k].temp / countMap[k], rain: sumMap[k].rain / countMap[k] };
+    });
+
+    const processed = weatherData.map((r, i) => {
+      const key = mode === 'seasonal' ? getSeason(r.month) : r.month;
+      const avg = avgMap[key];
+      const tempDiff = r.temperature - avg.temp;
+      const rainDiff = r.rainfall - avg.rain;
+      const isAnomaly = Math.abs(tempDiff) > tempThresh || Math.abs(rainDiff) > rainThresh;
+      return { ...r, avg, tempDiff, rainDiff, isAnomaly, idx: i + 1 };
+    });
+
+    const anomalies = processed.filter(r => r.isAnomaly).length;
+    const avgTemp = weatherData.reduce((s,r) => s+r.temperature, 0) / weatherData.length;
+    const avgRain = weatherData.reduce((s,r) => s+r.rainfall, 0) / weatherData.length;
+    const pct = Math.round((anomalies / processed.length) * 100);
+
+    document.getElementById('m-total').textContent = weatherData.length;
+    document.getElementById('m-anomalies').textContent = anomalies;
+    document.getElementById('m-pct').textContent = pct + '% of data';
+    document.getElementById('m-avg-temp').textContent = avgTemp.toFixed(1);
+    document.getElementById('m-avg-rain').textContent = avgRain.toFixed(1);
+
+    renderTable(processed);
+    renderCharts(processed);
+
+    const rs = document.getElementById('results-section');
+    rs.classList.remove('hidden');
+    rs.classList.remove('fade-up');
+    void rs.offsetWidth;
+    rs.classList.add('fade-up');
+  }
+
+  function renderTable(data) {
+    const tbody = document.getElementById('data-table');
+    tbody.innerHTML = data.map(r => `
+      <tr class="${r.isAnomaly ? 'anomaly' : ''}">
+        <td style="color:var(--text-faint)">${r.idx}</td>
+        <td>${r.month}</td>
+        <td>${r.temperature.toFixed(1)}</td>
+        <td class="${r.tempDiff > 0 ? 'diff-pos' : 'diff-neg'}">${r.tempDiff >= 0 ? '+' : ''}${r.tempDiff.toFixed(1)}</td>
+        <td>${r.rainfall.toFixed(1)}</td>
+        <td class="${r.rainDiff > 0 ? 'diff-pos' : 'diff-neg'}">${r.rainDiff >= 0 ? '+' : ''}${r.rainDiff.toFixed(1)}</td>
+        <td><span class="badge ${r.isAnomaly ? 'badge-flag' : 'badge-ok'}">${r.isAnomaly ? '⚠ Flagged' : '✓ Normal'}</span></td>
+      </tr>
+    `).join('');
+  }
+
+  function renderCharts(data) {
+    const labels = data.map((r, i) => `${r.month} #${i+1}`);
+    const gridColor = 'rgba(255,255,255,0.06)';
+    const textColor = '#8b8fa8';
+
+    const baseOpts = {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1a1d27', titleColor: '#e8eaf0', bodyColor: '#8b8fa8', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1 } },
+      scales: {
+        x: { ticks: { color: textColor, font: { size: 10 }, maxRotation: 45 }, grid: { color: gridColor } },
+        y: { ticks: { color: textColor, font: { size: 10 } }, grid: { color: gridColor } }
+      }
+    };
+
+    if (tempChart) tempChart.destroy();
+    if (rainChart) rainChart.destroy();
+
+    const tc = document.getElementById('temp-chart').getContext('2d');
+    tempChart = new Chart(tc, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Temperature',
+            data: data.map(r => r.temperature),
+            borderColor: '#378ADD',
+            backgroundColor: 'rgba(55,138,221,0.08)',
+            fill: true, tension: 0.35,
+            pointBackgroundColor: data.map(r => r.isAnomaly ? '#E24B4A' : '#378ADD'),
+            pointBorderColor: data.map(r => r.isAnomaly ? '#E24B4A' : '#378ADD'),
+            pointRadius: data.map(r => r.isAnomaly ? 7 : 3),
+            pointHoverRadius: 8
+          },
+          {
+            label: 'Avg',
+            data: data.map(r => parseFloat(r.avg.temp.toFixed(1))),
+            borderColor: '#555870',
+            borderDash: [5, 5],
+            backgroundColor: 'transparent',
+            pointRadius: 0, tension: 0
+          }
+        ]
+      },
+      options: { ...baseOpts }
+    });
+
+    const rc = document.getElementById('rain-chart').getContext('2d');
+    rainChart = new Chart(rc, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Rainfall',
+            data: data.map(r => r.rainfall),
+            backgroundColor: data.map(r => r.isAnomaly ? 'rgba(226,75,74,0.7)' : 'rgba(29,158,117,0.7)'),
+            borderColor: data.map(r => r.isAnomaly ? '#E24B4A' : '#1D9E75'),
+            borderWidth: 1,
+            borderRadius: 4
+          },
+          {
+            label: 'Avg',
+            data: data.map(r => parseFloat(r.avg.rain.toFixed(1))),
+            type: 'line',
+            borderColor: '#555870',
+            borderDash: [5, 5],
+            backgroundColor: 'transparent',
+            pointRadius: 0, tension: 0
+          }
+        ]
+      },
+      options: { ...baseOpts }
+    });
+  }
+</script>
+</body>
+</html>
